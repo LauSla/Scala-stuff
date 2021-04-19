@@ -1,8 +1,46 @@
+import java.io.{File, FileWriter}
+
 import scala.io.Source
+import scala.util.Try
 
 object DNA extends App{
 
-  //DNA to RNA converter
+  //get DNA strings from online database search
+  def getDataFromWeb(searchDNA: String) ={
+
+    //get all the html text out of a website
+    def getLinesFromFile(url: String): Array[String] = {
+      val bufferedSource = Source.fromURL(url)
+      val lines = bufferedSource.getLines.toArray
+      bufferedSource.close
+      lines
+    }
+
+    val searchString = "https://www.ncbi.nlm.nih.gov/nuccore/" + searchDNA + "?report=fasta"
+    val data = getLinesFromFile(searchString)
+
+    //the database search results do not allow direct access to DNA string
+    //it is shown on site, but does NOT appear in page source code
+    //DNA string can be accessed through unique id code
+    //following code extracts this id code and gets DNA string from database
+
+    val dataRow = data.filter(_.startsWith("  <div id=\"viewercontent1\"")).mkString
+    val idCodeTemp = dataRow.slice(dataRow.indexOf(" val="), dataRow.indexOf(" SequenceSize="))
+    val idCode = idCodeTemp.slice(6, idCodeTemp.length()-1)
+    val searchById = "https://www.ncbi.nlm.nih.gov/sviewer/viewer.cgi?tool=portal&log$=seqview&db=nuccore&report=fasta&id="+ idCode+ "&extrafeat=null&conwithfeat=on&hide-cdd=on"
+
+    val dataDNA = getLinesFromFile(searchById)
+
+    //return two values: the name and the sequence of DNA
+    val nameOfDNA = dataDNA.slice(0,1).mkString
+    val sequenceOfDNA = dataDNA.slice(1,dataDNA.length).mkString
+
+    (nameOfDNA, sequenceOfDNA)
+  }
+
+  //following 4 functions turn a DNA sequence into amino acid string (protein) it generates
+
+  //converts input DNA to RNA
   def transcription(dna: String):String = {
   val rna = for (c <- dna) yield {
     c match {
@@ -10,23 +48,40 @@ object DNA extends App{
       case 'G' => 'C'
       case 'C' => 'G'
       case 'T' => 'A'
-        //need to deal with other/error cases
-        //case '_' => '_'  //will this work? gap stays gap?
+        //TODO check changes here!
+      case '_' => 'N'  //any other unusual inputs turn into N
       }
   }
     rna
   }
 
-  //converts three letter segments into aminoacids
+  //splits RNA into three character groups based on three frames
+  //frames start from 1st, 2nd and 3rd character
+  def toFrames(rna: String) = {
+
+    val frame1 = rna.grouped(3).toList
+    val frame2 = rna.slice(1,rna.length).grouped(3).toList
+    val frame3 = rna.slice(2,rna.length).grouped(3).toList
+      //TODO check changes here!
+      //TODO You were combining these strings later on, easier to merge them here
+      //TODO it's a list of strings, so if frame1 ends with, say, -UC-, it will still stay separate
+    frame1 ++ frame2 ++ frame3
+      //TODO - what happens, if [START] is in frame1 and [STOP] in frame2???
+      //TODO Should we maybe NOT merge the frames, ever?
+  }
+
+  //converts three letter RNA segments into amino acids
   def translation(temp:List[String]):List[String] = {
-    //val start = "AUG" //do we need to start with start?
-    //here, smth like if string does NOT contain AUG - return error message or nothing?
 
     val protein = for (item <- temp) yield {
       item match {
 
-        case "AUG" => "[START] Met"
-        case "UAA" | "UAG" | "UGA" => "[STOP]" //this can be deleted, as it's handled in def usefulBits
+        //case "AUG" => "[START] Met"
+
+        //TODO check changes here!
+        //TODO to simplify regex, got rid of [START], assuming Met's the starting sequence anyways
+        case "AUG" => "Met"
+        case "UAA" | "UAG" | "UGA" => "STOP"
 
         case "UUU" | "UUC" => "Phe"
         case "UUA" | "UUG" | "CUU" | "CUC" | "CUA" | "CUG" => "Leu"
@@ -48,103 +103,67 @@ object DNA extends App{
         case "CGU" | "CGC" | "CGA" | "CGG" | "AGA" | "AGG" => "Arg"
         case "AGU" | "AGC" => "Ser"
         case "GGU" | "GGC" | "GGA" | "GGG" => "Gly"
-
-        case _ => ""//those "extra" 1 or two letters should just stay unmatched
+          //TODO check changes here!
+        case _ => "Undefined"//catches those "extra" 1 or two letters or any unusual input
     }
     }
     protein
   }
 
-  //TODO input data from DNA database
-  //TODO can not do it directly, but maybe there is a workarround:
-  //use regular search, get a secret ID number out of it, get raw data
+  //TODO check changes here!
+  //Regex finds everything between Met (included) and -STOP (not included) sequences
+  //Finds all such cases
+  //TODO test on a case where several proteins are created!
+  //Success(Met-Thr-Ser-Thr-Arg-Asn-Leu-Leu) <-this is output when a string IS found
+  //Success() <-this is output, when a string is NOT found
+  //we should be able to get rid of the extra stuff
 
-  //TODO test it!
-  //***************************************************************************
-  println("HERE WE BUILD SEARCH STRINGS IN 2 STEPS")
+  def realProtein(protein: String): Try[String] ={
+    val Pattern = "Met.*?(?=\\b-STOP\\b)".r
+    //val Pattern = "Met.*?(?=\\b-PSTOP\\b)".r  //this pattern will for sure make error, use for testing!
+    Try(Pattern.findAllIn(protein).toList.mkString("\n"))
+  }
+  //if there is no real protein in the query, the programme gives error.
+  //FIXED!
+
+  //TODO fix the error.when there are multiple proteins made in a row, the start codon disappears, though it is known is there nonetheless.
+  //This one, I need an example to get the idea. is it like, [START] hey [STOP] hey hey [STOP] would create TWO proteins, hey and hey hey hey?
+
+
+//real program starts here
+//******************************************
+
   //val searchDNA = readLine("Input DNA name/id: ")
-  val searchDNA = "MF945608.1"
-  val searchString = "https://www.ncbi.nlm.nih.gov/nuccore/" + searchDNA + "?report=fasta"
-  println("THIS WEBPAGE HAS A SECRET ID CODE!")
-  println(searchString)
+  //val searchDNA = "MF945608.1"
+  //val searchDNA = "NM_001126113.3"
+  val searchRequest = "NM_001126113.3, MF945608.1"
+  val searchDNAlist = searchRequest.split(", ")
+  //TODO make splitting more flexible
 
-  //reused function that gets all the html text out of a website
-  def getLinesFromFile(url: String): Array[String] = {
-    val bufferedSource = Source.fromURL(url)
-    val lines = bufferedSource.getLines.toArray
-    bufferedSource.close
-    lines
-  }
-  val data = getLinesFromFile(searchString)
+  val outputfile = "./src/proteins.txt"
+  val output = new FileWriter(new File (outputfile))
 
-  //println(data.mkString("\n"))
-  val dataRow = data.filter(_.startsWith("  <div id=\"viewercontent1\"")).mkString
-  println("THIS IS THE ROW WITH CODE")
-  println(dataRow.mkString)
-  val idCodeTemp = dataRow.slice(dataRow.indexOf(" val="), dataRow.indexOf(" SequenceSize="))
-  val idCode = idCodeTemp.slice(6, idCodeTemp.length()-1)
-  println("THIS IS THE FILTERED OUT CODE")
-  println(idCode)
-  val searchString2 = "https://www.ncbi.nlm.nih.gov/sviewer/viewer.cgi?tool=portal&log$=seqview&db=nuccore&report=fasta&id="+ idCode+ "&extrafeat=null&conwithfeat=on&hide-cdd=on"
-  println("THIS NEW HTML STRING HAS DNA SEQUENCE")
-  println(searchString2)
+  for (searchDNA <- searchDNAlist) {
 
-  val dataDNA = getLinesFromFile(searchString2)
-  println("RAW DATA")
-  println(dataDNA.mkString("\n"))
-  println("TWO VALUES: NAME AND SEQUENCE")
-  val nameOfDNA = dataDNA.slice(0,1).mkString
-  println(nameOfDNA)
-  val sequenceOfDNA = dataDNA.slice(1,dataDNA.length).mkString
-  println(sequenceOfDNA)
+    val (nameOfDNA, currentDNA) = getDataFromWeb(searchDNA)
+    val protein = translation(toFrames(transcription(currentDNA))).mkString("-")
 
+    val proteininfo = nameOfDNA + "\n"+ realProtein(protein)
+    //I think this "\n" bit will give separate lines
 
-  //finds START and END sequences in RNA sequences, exports only bits that need converting
-  //TODO make this better! too likely to cause errors
-  //this bit NOT IN USE for now! ignore!
-  def usefulBits(input: List[String]):List[String] = {
-  //we get the bit START to STOP
-    var start = -1
-    var stop = -1
-    //finds the bits where START and STOP are located
-    for ((str, idx) <- input.zipWithIndex) {
-      if (str == "AUG") start = idx
-      if (str == "UAA" | str =="UAG" | str =="UGA") stop = idx
-      //assumes only ONE start and stop (will take LAST ones, if several present)
-      //TODO deal with case when several starts and stops in one string
-      //if there can be several stops and starts, we just keep indices in an arraybuffers
-    }
-    if (start == -1) stop = -1 //if no start, return empty
-    val useful = input.slice(start, stop) //if -1,-1 returns empty - in cases of temp1 and temp2
-    useful
+    //TODO each protein should be in a different line, not all the string together.
+    //Test this one, see how it goes in case several proteins exist
+
+    println(proteininfo)
+
+    output.write(proteininfo)
   }
 
-  //here we split mrna into three characters starting from 1st, 2nd and 3rd character
-  def toFrames(mrna: String) = {   //
+  output.close()
 
-    val temp1 = mrna.grouped(3).toList
-    val temp2 = mrna.slice(1,mrna.length).grouped(3).toList
-    val temp3 = mrna.slice(2,mrna.length).grouped(3).toList
-
-    (temp1, temp2, temp3)
-  }
+  //TODO this now creates a file and seems to rewrite the old one each time
+  //Fix this somehow!
 
 
-  //here, testing the definitions above
-  //*******************************************************************************************
-  val testDNA = "AGAGCCT"
-  println(transcription(testDNA))
-
-  val testMRNA = "UCAUGAUCUCGUAAGA" //from Khan example
-
-  println("TESTING ON MF945608.1 STRING WE JUST GOT:")
-  val (frame1, frame2, frame3) = toFrames(transcription(sequenceOfDNA))
-
-  println(translation(frame1).mkString("-"))
-  println(translation(frame2).mkString("-"))
-  println(translation(frame3).mkString("-"))
-
-  
 
 }
-
