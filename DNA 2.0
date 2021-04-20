@@ -1,8 +1,9 @@
 import java.io.{File, FileWriter}
 
 import scala.io.Source
+import scala.io.StdIn.readLine
 
-object DNA extends App{
+object DNA extends App {
 
   //get DNA strings from online database search
   def getDataFromWeb(searchDNA: String) ={
@@ -37,49 +38,43 @@ object DNA extends App{
     (nameOfDNA, sequenceOfDNA)
   }
 
-  //following 4 functions turn a DNA sequence into amino acid string (protein) it generates
+  //following 4 functions turn a DNA sequence into aminoacid string (protein) it generates
 
   //converts input DNA to RNA
-  def transcription(dna: String):String = {
-  val rna = for (c <- dna) yield {
-    c match {
-      case 'A' => 'U'
-      case 'G' => 'C'
-      case 'C' => 'G'
-      case 'T' => 'A'
-        //TODO check changes here!
-      case '_' => 'N'  //any other unusual inputs turn into N
+  def transcription(dna: String): String = {
+    val rna = for (c <- dna) yield {
+      c match {
+        case 'A' => 'U'
+        case 'G' => 'C'
+        case 'C' => 'G'
+        case 'T' => 'A'
+        case '_' => 'N' //any other unusual inputs turn into N
       }
-  }
+    }
     rna
   }
-
   //splits RNA into three character groups based on three frames
   //frames start from 1st, 2nd and 3rd character
   def toFrames(rna: String) = {
-
     val frame1 = rna.grouped(3).toList
     val frame2 = rna.slice(1,rna.length).grouped(3).toList
     val frame3 = rna.slice(2,rna.length).grouped(3).toList
-      //TODO check changes here!
+    //TODO check changes here!
     (frame1, frame2, frame3)
   }
 
-  //converts three letter RNA segments into amino acids
-  def translation(temp:List[String]):List[String] = {
 
+  //converts three letter RNA segments into amino acids
+  def translation(temp: List[String]): List[String] = {
     val protein = for (item <- temp) yield {
       item match {
-
-        //case "AUG" => "[START] Met"
-
-        //TODO check changes here!
-        //TODO to simplify regex, got rid of [START], assuming Met's the starting sequence anyways
         case "AUG" => "Met"
         case "UAA" | "UAG" | "UGA" => "STOP"
-
         case "UUU" | "UUC" => "Phe"
-        case "UUA" | "UUG" | "CUU" | "CUC" | "CUA" | "CUG" => "Leu"
+        case "UUA" | "UUG" | "CUU" | "CUC" | "CUA" | "CUG" =>
+
+          "Leu"
+
         case "AUU" | "AUC" | "AUA" => "Ile"
         case "GUU" | "GUC" | "GUA" | "GUG" => "Val"
         case "UCU" | "UCC" | "UCA" | "UCG" => "Ser"
@@ -95,75 +90,68 @@ object DNA extends App{
         case "GAA" | "GAG" => "Glu"
         case "UGU" | "UGC" => "Cys"
         case "UGG" => "Trp"
-        case "CGU" | "CGC" | "CGA" | "CGG" | "AGA" | "AGG" => "Arg"
+
+        case "CGU" | "CGC" | "CGA" | "CGG" | "AGA" | "AGG" =>
+
+          "Arg"
+
         case "AGU" | "AGC" => "Ser"
         case "GGU" | "GGC" | "GGA" | "GGG" => "Gly"
-          //TODO check changes here!
-        case _ => "Undefined"//catches those "extra" 1 or two letters or any unusual input
-    }
+        case _ => "Undefined" //catches those "extra" 1 or two letters or any unusual input
+      }
     }
     protein
   }
-
   //TODO check changes here!
   //Regex finds everything between Met (included) and -STOP (not included) sequences
   //Finds all such cases
-  def realProtein(protein: String): String ={
+  def realProtein(protein: String): String = {
     val Pattern = "Met.*?(?=\\b-STOP\\b)".r
-    //val Pattern = "Met.*?(?=\\b-PSTOP\\b)".r  //this pattern will for sure make error, use for testing!
+    //val Pattern = "Met.*?(?=\\b-PSTOP\\b)".r //this pattern will for sure make error, use for testing!
     try {
       Pattern.findAllIn(protein).toList.mkString("\n")
     }
     catch {
-      case _ => "String place holder"
+      case _ => println("String place holder").toString
       //TODO here, the message does NOT appear in output, just returns empty line
-        //would be great to get an appropriate message printed
+      //would be great to get an appropriate message printed
     }
   }
 
-  //TODO fix the error.when there are multiple proteins made in a row, the start codon disappears, though it is known is there nonetheless.
-  //This one, I need an example to get the idea. is it like, [START] hey [STOP] hey hey [STOP] would create TWO proteins, hey and hey hey hey?
-
   //this wrap function wraps 4 previous ones in one big super function
+  //TODO make code more elegant
   def generateProteins(searchDNA: String): String = {
     val (nameOfDNA, currentDNA) = getDataFromWeb(searchDNA)
     val (frame1, frame2, frame3) = toFrames(transcription(currentDNA))
-    nameOfDNA + "\n" ++ realProtein(translation(frame1).mkString("-"))++ realProtein(translation(frame2).mkString("-"))++ realProtein(translation(frame3).mkString("-"))
+    nameOfDNA + "\n" + realProtein(translation(frame1).mkString("-")) + realProtein(translation(frame2).mkString("-")) + realProtein(translation(frame3).mkString("-"))
   }
 
-//main program starts here
-//******************************************
+  //main program starts here
+  //******************************************
 
-  //val searchRequest = readLine("Input DNA name/id: ")
-  val searchRequest = "NM_001126113.3, DoesNotExist12.3, MF945608.1, X95152.1, HF583519.1"
+  val searchRequest = readLine("Input DNA name/id: ")
+  //val searchRequest = "NM_001126113.3, DoesNotExist12.3, MF945608.1, X95152.1, HF583519.1"
   val searchDNAList = searchRequest.split(",")
 
+  //get DNA strings from online database search
   //open a file for writing in
-  //TODO see if a fasta file created like this works as expected
-  //val outputFile = "./src/proteins.txt"
   val outputFile = "./src/proteins.fasta"
   val output = new FileWriter(new File (outputFile))
 
   for (searchDNA <- searchDNAList) {
-
     val proteinInfo = try {
       generateProteins(searchDNA.trim())
     }
       //in case any of the search requests generate error
       //() is printed in final file, get error message on screen
+
     catch {
       case _ => println(s"$searchDNA : an ERROR occurred")
     }
-
     println(proteinInfo)
     output.write(proteinInfo.toString + "\n")
   }
   //close the file
   output.close()
-
-  //TODO this now creates a file and seems to rewrite the old one each time
-  //Fix this somehow!
-
-
 
 }
