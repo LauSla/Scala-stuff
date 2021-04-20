@@ -119,8 +119,9 @@ object DNA extends App{
       Pattern.findAllIn(protein).toList.mkString("\n")
     }
     catch {
-      case _ => "None"
+      case _ => "String place holder"
       //TODO here, the message does NOT appear in output, just returns empty line
+        //would be great to get an appropriate message printed
     }
   }
 
@@ -141,7 +142,9 @@ object DNA extends App{
   val searchDNAList = searchRequest.split(",")
 
   //open a file for writing in
-  val outputFile = "./src/proteins.txt"
+  //TODO see if a fasta file created like this works as expected
+  //val outputFile = "./src/proteins.txt"
+  val outputFile = "./src/proteins.fasta"
   val output = new FileWriter(new File (outputFile))
 
   for (searchDNA <- searchDNAList) {
