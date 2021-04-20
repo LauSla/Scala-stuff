@@ -62,11 +62,7 @@ object DNA extends App{
     val frame2 = rna.slice(1,rna.length).grouped(3).toList
     val frame3 = rna.slice(2,rna.length).grouped(3).toList
       //TODO check changes here!
-      //TODO You were combining these strings later on, easier to merge them here
-      //TODO it's a list of strings, so if frame1 ends with, say, -UC-, it will still stay separate
-    frame1 ++ frame2 ++ frame3
-      //TODO - what happens, if [START] is in frame1 and [STOP] in frame2???
-      //TODO Should we maybe NOT merge the frames, ever?
+    (frame1, frame2, frame3)
   }
 
   //converts three letter RNA segments into amino acids
@@ -131,14 +127,15 @@ object DNA extends App{
   //this wrap function wraps 4 previous ones in one big super function
   def generateProteins(searchDNA: String): String = {
     val (nameOfDNA, currentDNA) = getDataFromWeb(searchDNA)
-    nameOfDNA + "\n"+ realProtein(translation(toFrames(transcription(currentDNA))).mkString("-"))
+    val (frame1, frame2, frame3) = toFrames(transcription(currentDNA))
+    nameOfDNA + "\n" ++ realProtein(translation(frame1).mkString("-"))++ realProtein(translation(frame2).mkString("-"))++ realProtein(translation(frame3).mkString("-"))
   }
 
 //main program starts here
 //******************************************
 
   //val searchRequest = readLine("Input DNA name/id: ")
-  val searchRequest = "NM_001126113.3, MF98.1, MF945608.1"
+  val searchRequest = "NM_001126113.3, DoesNotExist12.3, MF945608.1, X95152.1, HF583519.1"
   val searchDNAList = searchRequest.split(",")
 
   //open a file for writing in
